@@ -68,12 +68,12 @@ def setup_to_finetune(model):
 
 def train(args):
     """Use transfer learning and fine-tuning to train a network on a new dataset"""
-    args.train_dir = './train_dir'
-    args.val_dir = './val_dir'
+    args.train_dir = '../dataset/train_dir'
+    args.val_dir = '../dataset//val_dir'
     args.nb_epoch = 5
     args.batch_size = 64
     args.plot = True
-    args.output_model_file = './models/Inception_v3.h5'
+    args.output_model_file = '../models/Inception_v3.h5'
 
     nb_train_samples = get_nb_files(args.train_dir)
     nb_classes = len(glob.glob(args.train_dir + "/*"))
@@ -104,7 +104,7 @@ def train(args):
     train_generator = train_datagen.flow_from_directory(
         args.train_dir,
         target_size=(IM_WIDTH, IM_HEIGHT),
-        # save_to_dir='d:\\train_gen',
+        # save_to_dir='../dataset/train_gen',
         batch_size=batch_size, class_mode='categorical'
     )
 
@@ -123,7 +123,7 @@ def train(args):
     # transfer learning
     setup_to_transfer_learn(model, base_model)
 
-    callback = callbacks.TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=True)
+    callback = callbacks.TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=True)
 
     history_tl = model.fit_generator(
         train_generator,
@@ -171,9 +171,9 @@ def plot_training(history):
 
 
 def predict():
-    model = load_model("./models/Inception_v3.h5")
+    model = load_model("../models/Inception_v3.h5")
     lables = {0: 'cat', 1: 'dog'}
-    root = 'd:\\test'
+    root = '../dataset/test'
     list_dir = os.listdir(root)
     for i in range(0, len(list_dir)):
         path = os.path.join(root, list_dir[i])
@@ -208,6 +208,6 @@ if __name__ == "__main__":
     #     print("directories do not exist")
     #     sys.exit(1)
 
-    # train(args)
+    train(args)
 
-    predict()
+    # predict()
