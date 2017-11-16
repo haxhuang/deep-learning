@@ -13,6 +13,7 @@ from keras.models import Sequential, load_model
 from keras.layers.core import Dense, Dropout
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
+from keras.utils import plot_model
 from sklearn.model_selection import train_test_split
 
 np.random.seed(7)
@@ -24,8 +25,8 @@ batch_size = 128
 
 
 def load_data():
-    neg = pd.read_excel("./data/neg.xls", header=None, index=None)
-    pos = pd.read_excel("./data/pos.xls", header=None, index=None)
+    neg = pd.read_excel("../dataset/data/neg.xls", header=None, index=None)
+    pos = pd.read_excel("../dataset/data/pos.xls", header=None, index=None)
     data = np.concatenate((pos[0], neg[0]))
     labels = np.concatenate((np.ones(len(pos), dtype=int), np.zeros(len(neg), dtype=int)))
     # print(data[:-3])
@@ -66,13 +67,13 @@ def train():
     model.add(Dense(1, activation='sigmoid'))
     sgd = Adam(lr=0.0003)
     model.compile(optimizer=sgd, loss='binary_crossentropy', metrics=['acc'])
-    callback = callbacks.TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=True)
+    callback = callbacks.TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=True)
     model.fit(x_train, y_train, batch_size=batch_size, epochs=5, validation_data=(x_test, y_test),
               callbacks=[callback])
     score = model.evaluate(x_test, y_test, batch_size=batch_size)
     print("Score:",
           score)  # [0.25330617905265534, 0.90840176860516542] Score: [0.34134976900151998, 0.91163231447617943]
-    model.save("./models/lstm_1.h5")
+    model.save("../models/lstm_1.h5")
 
 
 def create_dictionaries(model=None, combined=None):
@@ -103,14 +104,14 @@ def create_dictionaries(model=None, combined=None):
 
 
 def build_w2v():
-    neg = pd.read_excel("./data/neg.xls", header=None, index=None)
-    pos = pd.read_excel("./data/pos.xls", header=None, index=None)
+    neg = pd.read_excel("../dataset/data/neg.xls", header=None, index=None)
+    pos = pd.read_excel("../dataset/data/pos.xls", header=None, index=None)
     seg_data = np.concatenate((pos[0], neg[0]))
     segs = [jieba.lcut(document.replace('\n', '')) for document in seg_data]
     model = word2vec.Word2Vec(size=EMBEDDING_DIM, window=window_size, iter=1, min_count=5)
     model.build_vocab(segs)
     model.train(segs, total_examples=model.corpus_count, epochs=model.iter)
-    model.save('./models/Word2vec_model.model')
+    model.save('../models/Word2vec_model.model')
 
 
 def text2seq(input_texts):
@@ -149,7 +150,8 @@ def predict():
     seq = text2seq(input_texts)
 
     print('加载模型')
-    m = load_model("./models/lstm_1.h5")
+    m = load_model("../models/lstm_1.h5")
+    # plot_model(m, to_file='../models/lstm.png')
     print('开始预测')
     r = m.predict(seq, batch_size=batch_size)
     print(r)

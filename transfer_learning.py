@@ -5,12 +5,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from keras import callbacks
+from keras.applications import VGG16, VGG19
 from keras.applications.inception_v3 import InceptionV3, preprocess_input
 from keras.models import Model, load_model
 from keras.layers import Dense, GlobalAveragePooling2D
 from keras.preprocessing import image
 from keras.preprocessing.image import ImageDataGenerator
-from keras.optimizers import SGD
+from keras.optimizers import SGD, Adam
+from keras.utils import plot_model
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 IM_WIDTH, IM_HEIGHT = 299, 299  # fixed size for InceptionV3
 NB_EPOCHS = 3
@@ -63,17 +67,17 @@ def setup_to_finetune(model):
         layer.trainable = False
     for layer in model.layers[NB_IV3_LAYERS_TO_FREEZE:]:
         layer.trainable = True
-    model.compile(optimizer=SGD(lr=0.0001, momentum=0.9), loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(optimizer=Adam(lr=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
 
 
 def train(args):
     """Use transfer learning and fine-tuning to train a network on a new dataset"""
     args.train_dir = '../dataset/train_dir'
-    args.val_dir = '../dataset//val_dir'
+    args.val_dir = '../dataset/val_dir'
     args.nb_epoch = 5
     args.batch_size = 64
     args.plot = True
-    args.output_model_file = '../models/Inception_v3.h5'
+    args.output_model_file = '../models/Inception_v3_ft.h5'
 
     nb_train_samples = get_nb_files(args.train_dir)
     nb_classes = len(glob.glob(args.train_dir + "/*"))
@@ -114,42 +118,63 @@ def train(args):
         batch_size=batch_size, class_mode='categorical'
     )
 
+    t_generator = train_datagen.flow_from_directory(
+        args.train_dir,
+        target_size=(IM_WIDTH, IM_HEIGHT),
+        batch_size=batch_size,
+        class_mode=None,  # this means our generator will only yield batches of data, no labels
+        shuffle=False)  # our data will
+    v_generator = train_datagen.flow_from_directory(
+        args.val_dir,
+        target_size=(IM_WIDTH, IM_HEIGHT),
+        batch_size=batch_size,
+        class_mode=None,  # this means our generator will only yield batches of data, no labels
+        shuffle=False)  # our data will
+
     # setup model
     base_model = InceptionV3(weights='imagenet', include_top=False)  # include_top=False excludes final FC layer
     model = add_new_last_layer(base_model, nb_classes)
 
-    # bottleneck_features_train = model.predict_generator(train_generator, 2000)
-
-    # transfer learning
-    setup_to_transfer_learn(model, base_model)
+    bottleneck_features_train = base_model.predict_generator(t_generator, 32)  # (128, 8, 8, 2048)
+    print(bottleneck_features_train.shape)
+    # np.save(open('../models/bottleneck_features_train.npy', 'wb'), bottleneck_features_train)
+    np.save('../models/bottleneck_features_train.npy', bottleneck_features_train)
+    bottleneck_features_validation = base_model.predict_generator(v_generator, 6)
+    np.save('../models/bottleneck_features_validation.npy', bottleneck_features_validation)
+    print(bottleneck_features_validation.shape)
+    # np.save(open('../models/bottleneck_features_validation.npy', 'wb'),
+    #         bottleneck_features_validation)
 
     callback = callbacks.TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=True)
 
-    history_tl = model.fit_generator(
+    # transfer learning
+    # setup_to_transfer_learn(model, base_model)
+    # history_tl = model.fit_generator(
+    #     train_generator,
+    #     epochs=nb_epoch,
+    #     steps_per_epoch=nb_train_samples // batch_size,
+    #     validation_data=validation_generator,
+    #     validation_steps=nb_val_samples // batch_size,
+    #     callbacks=[callback],
+    #     class_weight='auto')
+
+    # fine-tuning
+    setup_to_finetune(model)
+    #
+    history_ft = model.fit_generator(
         train_generator,
-        epochs=nb_epoch,
         steps_per_epoch=nb_train_samples // batch_size,
+        epochs=nb_epoch,
         validation_data=validation_generator,
         validation_steps=nb_val_samples // batch_size,
         callbacks=[callback],
         class_weight='auto')
 
-    # fine-tuning
-    # setup_to_finetune(model)
-    #
-    # history_ft = model.fit_generator(
-    #     train_generator,
-    #     steps_per_epoch=nb_train_samples // batch_size,
-    #     epochs=nb_epoch,
-    #     validation_steps=nb_train_samples,
-    #     validation_data=validation_generator,
-    #     # nb_val_samples=nb_val_samples,
-    #     class_weight='auto')
-
+    # model.evaluate_generator(validation_generator, steps=10)
     model.save(args.output_model_file)
 
     if args.plot:
-        plot_training(history_tl)
+        plot_training(history_ft)
 
 
 def plot_training(history):
@@ -171,7 +196,9 @@ def plot_training(history):
 
 
 def predict():
-    model = load_model("../models/Inception_v3.h5")
+    model = load_model("../models/Inception_v3_ft.h5")
+    # 保存模型结构成图片
+    # plot_model(model, to_file='../models/Inception_v3_ft.png')
     lables = {0: 'cat', 1: 'dog'}
     root = '../dataset/test'
     list_dir = os.listdir(root)
@@ -186,7 +213,6 @@ def predict():
             pre = model.predict(x)
             rr = np.argmax(pre, axis=1)[0]
             lable = lables[rr]
-
             print(path, '====>', pre, lable)
 
 
