@@ -15,6 +15,7 @@ BATCH_SIZE = 64
 
 def bottleneck_feature():
     model = InceptionV3(weights='imagenet', include_top=False)
+
     datagen = ImageDataGenerator(
         preprocessing_function=preprocess_input,
         rotation_range=30,
@@ -31,6 +32,7 @@ def bottleneck_feature():
         batch_size=BATCH_SIZE,
         class_mode=None,
         shuffle=False)
+
     v_generator = datagen.flow_from_directory(
         '../dataset/val_dir',
         target_size=(IM_WIDTH, IM_HEIGHT),
@@ -38,18 +40,18 @@ def bottleneck_feature():
         class_mode=None,
         shuffle=False)
 
-    bottleneck_features_train = model.predict_generator(t_generator, 32)
+    bottleneck_features_train = model.predict_generator(t_generator, len(t_generator.filenames) // BATCH_SIZE)
     print(bottleneck_features_train.shape)
     np.save('../models/bottleneck_features_train.npy', bottleneck_features_train)
 
-    bottleneck_features_validation = model.predict_generator(v_generator, 6)
+    bottleneck_features_validation = model.predict_generator(v_generator, len(v_generator.filenames) // BATCH_SIZE)
     print(bottleneck_features_validation.shape)
     np.save('../models/bottleneck_features_validation.npy', bottleneck_features_validation)
 
 
 def train():
     train_data = np.load('../models/bottleneck_features_train.npy')
-    train_labels = np.array([0] * 1001 + [1] * 1001)
+    train_labels = np.array([0] * 932 + [1] * 932)
 
     validation_data = np.load('../models/bottleneck_features_validation.npy')
     validation_labels = np.array([0] * 192 + [1] * 192)
