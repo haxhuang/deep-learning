@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/deep-learning.iml" filepath="$PROJECT_DIR$/.idea/deep-learning.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/kerasDemo.iml" filepath="$PROJECT_DIR$/.idea/kerasDemo.iml" />
     </modules>
   </component>

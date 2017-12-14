@@ -1,13 +1,17 @@
+from PIL import Image
 from keras.applications import VGG16, InceptionV3
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D
 from keras.layers import Activation, Dropout, Flatten, Dense
+
+
 
 # （1）载入图片
 # 图像生成器初始化
 from keras.preprocessing.image import ImageDataGenerator
 import numpy as np
 
+np.math.sqrt(256)
 model = InceptionV3(include_top=False, weights='imagenet')
 datagen = ImageDataGenerator(rescale=1. / 255)
 

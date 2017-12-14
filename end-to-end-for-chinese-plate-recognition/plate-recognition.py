@@ -64,7 +64,7 @@ def gen(batch_size=32):
 
 def train():
     global i
-    batch_size = 32
+    batch_size = 64
     adam = Adam(lr=0.001)
     input_tensor = Input((72, 272, 3))
     x = input_tensor
@@ -77,13 +77,13 @@ def train():
     x = Conv2D(64, kernel_size=(3, 3), activation='relu')(x)
     x = Conv2D(64, kernel_size=(3, 3), activation='relu')(x)
     x = MaxPool2D(pool_size=(2, 2))(x)
-    # x = BatchNormalization()(x)
+    x = BatchNormalization()(x)
     x = Dropout(0.3)(x)
 
     x = Conv2D(128, kernel_size=(3, 3), activation='relu')(x)
     x = Conv2D(128, kernel_size=(3, 3), activation='relu')(x)
     x = MaxPool2D(pool_size=(2, 2))(x)
-    # x = BatchNormalization()(x)
+    x = BatchNormalization()(x)
     x = Dropout(0.3)(x)
 
     x = Flatten()(x)
@@ -96,16 +96,18 @@ def train():
                   optimizer=adam,
                   metrics=['accuracy'])
     SVG(model_to_dot(model=model, show_layer_names=True, show_shapes=True).create(prog='dot', format='svg'))
-    best_model = ModelCheckpoint("chepai_best_1.h5", monitor='val_loss', verbose=0, save_best_only=True)
+    best_model = ModelCheckpoint("./models/plate_reg_best.h5", monitor='val_loss', verbose=0, save_best_only=True)
     tensorboard = callbacks.TensorBoard(log_dir='./logs', histogram_freq=0, write_graph=True, write_images=True)
-    model.fit_generator(gen(batch_size), steps_per_epoch=800, epochs=30,
+    model.fit_generator(gen(batch_size), steps_per_epoch=600, epochs=35,
                         validation_data=gen(batch_size), validation_steps=100,
                         callbacks=[best_model, tensorboard]
                         )
+    model.save('./models/plate_reg.h5')
 
 
 def predict():
-    model = load_model('./chepai_best_1.h5')
+    model = load_model('./models/plate_reg.h5')
+    # model.save_weights('./models/plate_reg.w')
     rootpath = './predict/'
     list_dir = os.listdir(rootpath)
     for i in range(0, len(list_dir)):
@@ -115,7 +117,6 @@ def predict():
             img = cv2.imdecode(np.fromfile(path, dtype=np.uint8), -1)  # 解决中文路径读取报错
             img = cv2.resize(img, (272, 72))
             x = np.array([img], dtype=np.uint8)
-
             l_titles = list(
                 map(lambda x1: "".join([chars[xx] for xx in x1]), np.argmax(np.array(model.predict(x)), 2).T))
             print(path, l_titles)
