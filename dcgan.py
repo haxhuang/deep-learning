@@ -12,6 +12,8 @@ from PIL import Image
 import argparse
 import math
 
+np.random.seed(1337)
+
 
 def generator_model():
     model = Sequential()
@@ -32,57 +34,39 @@ def generator_model():
 
 
 def create_D():
-    # weights are initlaized from normal distribution with below params
-    weight_init = RandomNormal(mean=0., stddev=0.02)
+    cnn = Sequential()
 
-    input_image = Input(shape=(28, 28, 1), name='input_image')
+    cnn.add(Conv2D(32, 3, padding='same', strides=2,
+                   input_shape=(28, 28, 1)))
+    cnn.add(LeakyReLU(0.2))
+    cnn.add(Dropout(0.3))
 
-    x = Conv2D(
-        32, (3, 3),
-        padding='same',
-        name='conv_1',
-        kernel_initializer=weight_init)(input_image)
-    x = LeakyReLU()(x)
-    x = MaxPool2D(pool_size=2)(x)
-    x = Dropout(0.3)(x)
+    cnn.add(Conv2D(64, 3, padding='same', strides=1))
+    cnn.add(LeakyReLU(0.2))
+    cnn.add(Dropout(0.3))
 
-    x = Conv2D(
-        64, (3, 3),
-        padding='same',
-        name='conv_2',
-        kernel_initializer=weight_init)(x)
-    x = MaxPool2D(pool_size=1)(x)
-    x = LeakyReLU()(x)
-    x = Dropout(0.3)(x)
+    cnn.add(Conv2D(128, 3, padding='same', strides=2))
+    cnn.add(LeakyReLU(0.2))
+    cnn.add(Dropout(0.3))
 
-    x = Conv2D(
-        128, (3, 3),
-        padding='same',
-        name='conv_3',
-        kernel_initializer=weight_init)(x)
-    x = MaxPool2D(pool_size=2)(x)
-    x = LeakyReLU()(x)
-    x = Dropout(0.3)(x)
+    cnn.add(Conv2D(256, 3, padding='same', strides=1))
+    cnn.add(LeakyReLU(0.2))
+    cnn.add(Dropout(0.3))
 
-    x = Conv2D(
-        256, (3, 3),
-        padding='same',
-        name='coonv_4',
-        kernel_initializer=weight_init)(x)
-    x = MaxPool2D(pool_size=1)(x)
-    x = LeakyReLU()(x)
-    x = Dropout(0.3)(x)
+    cnn.add(Flatten())
 
-    features = Flatten()(x)
+    image = Input(shape=(28, 28, 1))
 
-    output_is_fake = Dense(
-        1, activation='linear', name='output_is_fake')(features)
+    features = cnn(image)
 
-    output_class = Dense(
-        10, activation='softmax', name='output_class')(features)
+    # first output (name=generation) is whether or not the discriminator
+    # thinks the image that is being shown is fake, and the second output
+    # (name=auxiliary) is the class that the discriminator thinks the image
+    # belongs to.
+    fake = Dense(1, activation='sigmoid', name='generation')(features)
+    aux = Dense(10, activation='softmax', name='auxiliary')(features)
 
-    return Model(
-        inputs=[input_image], outputs=[output_is_fake], name='D')
+    return Model(image, fake)
 
 
 def create_G(latent_size=100):
@@ -117,12 +101,14 @@ def create_G(latent_size=100):
     cls = Flatten()(Embedding(10, latent_size,
                               embeddings_initializer='glorot_normal')(image_class))
 
+    # cls = Flatten()
+
     # hadamard product between z-space and a class conditional embedding
     h = layers.multiply([latent, cls])
 
     fake_image = cnn(h)
 
-    return Model(latent, fake_image)
+    return Model([latent, image_class], fake_image)
 
 
 def discriminator_model():
@@ -224,10 +210,6 @@ def train(BATCH_SIZE):
     :return:
     """
 
-    discriminator = create_D()
-
-    generator = create_G()
-
     (X_train, y_train), (X_test, y_test) = mnist.load_data()
     # print(X_train.shape)
     X_train = (X_train.astype(np.float32) - 127.5) / 127.5
@@ -235,10 +217,8 @@ def train(BATCH_SIZE):
     X_train = X_train[:, :, :, None]
     X_test = X_test[:, :, :, None]
 
-    # discriminator = discriminator_model()
-    # generator = generator_model()
-    # discriminator = Discriminator()()
-    # generator = Generator()()
+    discriminator = create_D()
+    generator = create_G()
 
     discriminator_on_generator = generator_containing_discriminator(generator, discriminator)
     # d_optim = SGD(lr=0.0005, momentum=0.9, nesterov=True)
@@ -249,16 +229,19 @@ def train(BATCH_SIZE):
     discriminator_on_generator.compile(loss='binary_crossentropy', optimizer=g_optim)
     discriminator.trainable = True
     discriminator.compile(loss='binary_crossentropy', optimizer=d_optim)
-    noise = np.zeros((BATCH_SIZE, 100))
+    # noise = np.zeros((BATCH_SIZE, 100))
     for epoch in range(100):
         print("Epoch is", epoch)
         print("Number of batches", int(X_train.shape[0] / BATCH_SIZE))
         for index in range(int(X_train.shape[0] / BATCH_SIZE)):  # 训练图片总数/BATACH_SIZE
-            for i in range(BATCH_SIZE):
-                noise[i, :] = np.random.uniform(-1, 1, 100)  # 生成正太分布的随机数
+            # for i in range(BATCH_SIZE):
+            #     noise[i, :] = np.random.uniform(-1, 1, 100)  # 生成正太分布的随机数
+            noise = np.random.uniform(-1, 1, (BATCH_SIZE, 100))
             image_batch = X_train[index * BATCH_SIZE:(index + 1) * BATCH_SIZE]  # 每次取batch_size的图片ndarray
             # image_batch = image_batch.transpose((0, 2, 3, 1))  # 最后一个维度为补充的维度，前面三个维度为图片本身的维度属性
-            generated_images = generator.predict(noise, verbose=0)  # 一次生成256张28x28的图片
+            sampled_labels = np.random.randint(0, 10, 100)
+            generated_images = generator.predict([noise, sampled_labels.reshape((-1, 1))],
+                                                 verbose=0)  # 一次生成256张28x28的图片
 
             print("generated_images shape:", generated_images.shape)
             if index % 40 == 0:  # 每20次输出一次图片
@@ -281,11 +264,12 @@ def train(BATCH_SIZE):
             y = [1] * BATCH_SIZE + [0] * BATCH_SIZE  # 标签0为生成器生成的图片
             d_loss = discriminator.train_on_batch(X, y)
             print("batch %d d_loss : %f" % (index, d_loss))
-            for i in range(BATCH_SIZE):
-                noise[i, :] = np.random.uniform(-1, 1, 100)
+            noise = np.random.uniform(-1, 1, (2 * 100, 100))
+            sampled_labels = np.random.randint(0, 10, 2 * 100)
+
             discriminator.trainable = False
             g_loss = discriminator_on_generator.train_on_batch(
-                noise, [1] * BATCH_SIZE)
+                [noise, sampled_labels.reshape((-1, 1))], [1] * 2 * BATCH_SIZE)
             discriminator.trainable = True
             print("batch %d g_loss : %f" % (index, g_loss))
             if index % 10 == 9:
@@ -339,7 +323,7 @@ def get_args():
 
 
 if __name__ == "__main__":
-    train(BATCH_SIZE=256)
+    train(BATCH_SIZE=100)
     # generate(BATCH_SIZE=256, nice=False)
     # args = get_args()
     # if args.mode == "train":

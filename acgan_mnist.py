@@ -70,8 +70,8 @@ def build_generator(latent_size):
     # this will be our label
     image_class = Input(shape=(1,), dtype='int32')
 
-    cls = Flatten()(Embedding(num_classes, latent_size,
-                              embeddings_initializer='glorot_normal')(image_class))
+    cls = Flatten()(Embedding(num_classes, latent_size, embeddings_initializer='glorot_normal')(image_class))
+    # (1,None,latent_size)
 
     # hadamard product between z-space and a class conditional embedding
     h = layers.multiply([latent, cls])
@@ -86,8 +86,7 @@ def build_discriminator():
     # the reference paper
     cnn = Sequential()
 
-    cnn.add(Conv2D(32, 3, padding='same', strides=2,
-                   input_shape=(28, 28, 1)))
+    cnn.add(Conv2D(32, 3, padding='same', strides=2, input_shape=(28, 28, 1)))
     cnn.add(LeakyReLU(0.2))
     cnn.add(Dropout(0.3))
 
@@ -120,7 +119,6 @@ def build_discriminator():
 
 
 if __name__ == '__main__':
-
     # batch and latent size taken from the paper
     epochs = 50
     batch_size = 100
@@ -210,6 +208,7 @@ if __name__ == '__main__':
             # layer as a length one sequence
             generated_images = generator.predict(
                 [noise, sampled_labels.reshape((-1, 1))], verbose=0)
+            # print(generated_images.shape)
 
             x = np.concatenate((image_batch, generated_images))
 
